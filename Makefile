@@ -9,3 +9,4 @@ test:
 sync-contract:
 	cp $(CONTRACT)/golden/cases.json internal/golden/cases.json
 	cp $(CONTRACT)/schema/log-line.schema.json internal/golden/log-line.schema.json
+	cp $(CONTRACT)/golden/secrets.json secrets/testdata/secrets.json

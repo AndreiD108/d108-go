@@ -4,7 +4,8 @@ The Go library of the d108 observability contract (`../d108/standard.md`): one p
 job, built in the order the standard's section 9 lists them. This batch holds the parts that
 name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
 the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`), the
-process owner (`lifecycle`) and the CLI kit (`cli`, `cli/clitest`, `doctor`).
+process owner (`lifecycle`), the CLI kit (`cli`, `cli/clitest`, `doctor`) and the two kinds of
+configuration (`config`, `secrets`).
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
 ## Scope
@@ -17,7 +18,7 @@ Use this tree as a map — scan it to find the parts your task touches, then go 
 
 <!-- BEGIN FILE TREE -->
 ```
-Makefile                 `test`; `sync-contract` copies cases.json and the schema from ../d108
+Makefile                 `test`; `sync-contract` copies cases.json, the schema and secrets.json from ../d108
 identity/                service.name, service.version, service.instance.id (ULID), pid, env prefix
   identity.go            Identity struct, New (name check, version by ldflags > build info > vcs > dev), EnvPrefix
   identity_test.go       Fields, prefix rules, bad names panic, version resolution table
@@ -85,6 +86,22 @@ cli/                     The Cobra tree of a tool (section 9.2): --format, Outpu
 doctor/                  The report behind every tool's doctor command
   doctor.go              Item/Section/Report, Add hook, Build (program, logging, telemetry probe), Text, ordered MarshalJSON
   doctor_test.go         Env to items, logger in ctx wins, fallback, today's file, tracing switch, probe, Add order, text and JSON
+config/                  Settings (section 9.5): config.json then the environment through go-envconfig, one parser for both
+  load.go                Package doc (precedence, file values as variable strings), Prefix option, Load, error classing
+  fields.go              The struct walk: a setting is a field with json and env tags; tag parsing; the env-then-file Lookuper
+  file.go                config.json to parser strings per setting; unknown keys and wrong shapes are usage failures
+  doctor.go              The "settings" section: a snapshot at Load with value and source; secret fields as set or unset
+  config_test.go         Precedence matrix, doctor items, Prefix(""), every error message, bad structs panic, embedded and pointers
+secrets/                 One encrypted file of names and values (section 9.5): AES-256-GCM, HKDF over a key file and the machine id
+  store.go               Package doc, Store (Open, Save, Load, Delete, Names), read and write through atomicfile, failure classes
+  crypto.go              The file format constants, envelope, deriveKey, seal, open; errFormat and errOpen
+  machine.go             machineID, the source labels, readMachine hook for tests, normalize
+  machine_linux.go       /etc/machine-id
+  machine_darwin.go      IOPlatformUUID from ioreg
+  doctor.go              The "secrets" section: names only, "none", or one error item
+  secrets_test.go        Round trip, modes, no clear text, delete, other machine or platform is auth, damaged files, concurrent saves, doctor, fixture
+  testdata/
+    secrets.json         Copy of ../d108/golden/secrets.json: one envelope with its inputs and plaintext
 internal/
   otelres/               Shared by tracing and metrics
     otelres.go           EndpointVar switch, identity resource over the SDK default, error handler to the logger
