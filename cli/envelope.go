@@ -14,9 +14,11 @@ import (
 // wrapValidation; incomplete made its own; those pass. After the hooks ran (PersistentPreRun,
 // PreRun) Cobra checks required flags and flag groups, so an unclassed error then is a usage
 // error with Cobra's message. Before that point it came from a hook and is classed as any
-// runner error: cancelled, timeout or internal unless the hook classed it.
+// runner error: cancelled, timeout or internal unless the hook classed it. The hidden
+// __complete command has no hooks of ours (Cobra adds it at run time, after wrapValidation),
+// so its only error, the Args check, is a usage error too.
 func classify(cmd *cobra.Command, ex *execution, err error) error {
-	if ex.hooksDone {
+	if ex.hooksDone || cmd.Name() == cobra.ShellCompRequestCmd {
 		return usage(cmd, err)
 	}
 	return failure.From(err)

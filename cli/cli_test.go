@@ -107,6 +107,24 @@ func tree(t *testing.T) *cobra.Command {
 		}
 		return out.Text("%s\n", b)
 	}, cli.Formats(cli.Text))
+	where := cli.Command(root, "where [thing]", "Reports what the runner sees through ctx", func(ctx context.Context, _ []string, out cli.Output) error {
+		if _, err := io.WriteString(cli.Stderr(ctx), "note\n"); err != nil {
+			return err
+		}
+		limit, _ := cli.Flags(ctx).GetInt("limit")
+		return out.JSON(map[string]any{"path": cli.CommandPath(ctx), "limit": limit, "changed": cli.Flags(ctx).Changed("limit")})
+	})
+	where.Flags().Int("limit", 20, "hits to return")
+	cli.Command(root, "mine", "Fails with its own details.command", func(context.Context, []string, cli.Output) error {
+		return failure.New(failure.Conflict, "taken", "pick another", "command", "custom")
+	})
+	cli.Command(root, "secret", "Reads a secret", func(ctx context.Context, _ []string, out cli.Output) error {
+		s, err := cli.ReadSecret(ctx, "Key: ")
+		if err != nil {
+			return err
+		}
+		return out.JSON(map[string]string{"secret": s})
+	})
 	return root
 }
 

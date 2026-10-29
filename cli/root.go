@@ -9,14 +9,17 @@
 //		id := identity.New("slack-cli")
 //		root := cli.Root(id, cli.Short("Slack from the terminal"))
 //		msg := cli.Group(root, "messages", "Read and search messages")
-//		cli.Command(msg, "search", "Search messages", search, cli.Formats(cli.JSON, cli.JSONL, cli.Text))
+//		cli.Command(msg, "search [query]", "Search messages", search, cli.Formats(cli.JSON, cli.JSONL, cli.Text))
 //		lifecycle.Run(id, func(ctx context.Context, _ *slog.Logger) error {
 //			return cli.Execute(ctx, root, os.Args[1:], os.Stdin, os.Stdout, os.Stderr)
 //		}, lifecycle.Heartbeat(false))
 //	}
 //
-// stdout carries the result and nothing else. Help, usage text and the error envelope go to
-// stderr. Log lines go where logging sends them (section 5).
+// The second argument of Command is the Use line: the name, then the argument synopsis. stdout
+// carries the result and nothing else. Help, the error envelope and the app's prompts and
+// progress go to stderr; the runner reaches the streams through Stdin, Stderr and ReadSecret,
+// its flags through Flags and its own path through CommandPath, all from ctx. Log lines go
+// where logging sends them (section 5).
 package cli
 
 import (
@@ -51,11 +54,13 @@ const (
 	annPID      = "cli.identity.pid"
 	annPrefix   = "cli.identity.prefix"
 	annExecuted = "cli.executed"
+	annHelp     = "cli.help"
 )
 
 // Root makes the root command of a tool from its identity: the tool's name is id.Name. It
 // carries the persistent --format flag, the doctor subcommand and the help command; Cobra's
-// completion command is off. Run with no subcommand is a usage error that lists the commands.
+// completion command is off. Run with no subcommand is a usage error that lists the commands,
+// and so is `help` with a command that does not exist.
 func Root(id identity.Identity, opts ...Option) *cobra.Command {
 	root := &cobra.Command{
 		Use:               id.Name,
@@ -72,6 +77,7 @@ func Root(id identity.Identity, opts ...Option) *cobra.Command {
 	}
 	root.SetUsageTemplate(usageTemplate)
 	root.SetFlagErrorFunc(flagError)
+	root.SetHelpCommand(helpCommand())
 	root.PersistentFlags().String(FormatFlag, "", "output format; each command's help lists the formats it accepts, the first is its default")
 	for _, opt := range opts {
 		opt(root)
@@ -101,6 +107,28 @@ func Group(parent *cobra.Command, name, short string) *cobra.Command {
 // needsSubcommand is the RunE of the root and of groups: a usage error naming the subcommands.
 func needsSubcommand(cmd *cobra.Command, args []string) error {
 	return incomplete(cmd, args)
+}
+
+// helpCommand replaces Cobra's help command, which answers an unknown topic with "Unknown
+// help topic" and exit 0. This one writes the help of the named command to stderr; a name
+// that is not a subcommand of the deepest command found is the usage error needsSubcommand
+// gives for it, with details.commands.
+func helpCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:         "help [command]",
+		Short:       "Help about any command",
+		Annotations: map[string]string{annHelp: "true"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			target, rest, err := cmd.Root().Find(args)
+			if err != nil || target == nil {
+				target, rest = cmd.Root(), args
+			}
+			if len(rest) > 0 && target.HasSubCommands() {
+				return incomplete(target, rest)
+			}
+			return target.Help()
+		},
+	}
 }
 
 // pathOf returns the command's path below the root ("messages search"), "" for the root.

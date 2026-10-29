@@ -44,15 +44,16 @@ func Formats(formats ...Format) CommandOption {
 const formatsAnnotation = "cli.formats"
 
 // Command makes a leaf under parent and returns it; flags, Long, Example and Args are set on
-// the returned command. Execute runs run inside work.Command, with the selected format
-// checked against the declaration.
-func Command(parent *cobra.Command, name, short string, run Runner, opts ...CommandOption) *cobra.Command {
+// the returned command. use is Cobra's Use line, the name followed by the argument synopsis
+// ("set-key [provider]"); the command's name is its first word. Execute runs run inside
+// work.Command, with the selected format checked against the declaration.
+func Command(parent *cobra.Command, use, short string, run Runner, opts ...CommandOption) *cobra.Command {
 	o := commandOptions{formats: []Format{JSON}}
 	for _, opt := range opts {
 		opt(&o)
 	}
 	c := &cobra.Command{
-		Use:         name,
+		Use:         use,
 		Short:       short,
 		Annotations: map[string]string{formatsAnnotation: formatList(o.formats)},
 	}
@@ -72,7 +73,7 @@ func runLeaf(cmd *cobra.Command, args []string, run Runner, formats []Format) er
 	}
 	ex.ran = true
 	format, err := selectFormat(cmd, formats)
-	ctx, end := work.Command(cmd.Context(), ex.log, pathOf(cmd), flagsOf(cmd))
+	ctx, end := work.Command(context.WithValue(cmd.Context(), leafKey{}, cmd), ex.log, pathOf(cmd), flagsOf(cmd))
 	if err == nil {
 		err = call(ctx, run, args, newOutput(ex.stdout, format))
 	}

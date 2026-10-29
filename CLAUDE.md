@@ -75,12 +75,18 @@ lifecycle/               Run owns main: setup, process.start, the stop sequence,
   internal_test.go       Heartbeat interval, second Run panics, foreign ctx panics
   example_test.go        The section 9.1 server, compiled
 cli/                     The Cobra tree of a tool (section 9.2): --format, Output, envelope, work.Command per run
-  root.go                Package doc, Root (identity, --format, doctor, usage template with Formats), Group, IdentityOf
-  command.go             Runner, Formats, Command; runLeaf: format check, work.Command, recover, args.flags
+  root.go                Package doc, Root (identity, --format, doctor, help command, usage template with Formats), Group, IdentityOf
+  command.go             Runner, Formats, Command (Use line); runLeaf: format check, work.Command, leaf in ctx, recover, args.flags
   output.go              Format constants, Output (JSON once, JSONL, Text; one write each), formatList
-  execute.go             Execute with injected streams; Stdin(ctx); a tree runs once; Cobra errors before a runner are usage
-  envelope.go            Cobra checks to usage failures (flagError, wrapValidation), hook errors classed, incomplete lists commands
+  execute.go             Execute with injected streams; Stdin, Stderr, Flags, CommandPath from ctx; details.command on every envelope
+  envelope.go            Cobra checks to usage failures (flagError, wrapValidation, __complete), hook errors classed, incomplete lists commands
+  secret.go              ReadSecret: echo off by termios, a poller-registered dup of stdin so ctx ends the read, first line when piped
+  termios_linux.go       TCGETS and TCSETS
+  termios_darwin.go      TIOCGETA and TIOCSETA
   cli_test.go            Sample tree through clitest: formats, envelope per class, usage and hook errors, panic, cancel, help, doctor
+  ctx_test.go            Stderr, Flags, CommandPath in a runner and outside, the Use line in help, ReadSecret piped, blocked and cancelled
+  envelope_test.go       details.command on every envelope and the app's own wins, help of an unknown command, __complete
+  secret_linux_test.go   ReadSecret on a pty from /dev/ptmx: echo off at the read and on after, blocking mode restored, cancel
   clitest/               Run a tree in tests
     clitest.go           Run/RunContext (exit, stdout, stderr; debug logger to a buffer), Lines (decoded), Raw (for logcheck)
 doctor/                  The report behind every tool's doctor command
