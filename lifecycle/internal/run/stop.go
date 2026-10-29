@@ -1,4 +1,4 @@
-package lifecycle
+package run
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"github.com/AndreiD108/d108-go/work"
 )
 
+// FlushForced bounds the telemetry flush of a forced exit.
+const FlushForced = 2 * time.Second
+
 // The phases of the stop sequence, on a forced process.stop.
 const (
 	phaseGoroutines = "goroutines"
@@ -17,12 +20,12 @@ const (
 	phaseFunc       = "fn"
 )
 
-// runFunc runs fn and turns its return or panic into the first cause.
-func (r *run) runFunc(fn Func) {
+// RunFunc runs fn and turns its return or panic into the first cause.
+func (r *Run) RunFunc(fn Func) {
 	defer close(r.fnDone)
 	defer func() {
 		if v := recover(); v != nil {
-			r.stop(cause{reason: ReasonError, code: failure.Code(failure.Internal), err: work.NewPanicError(v), panicked: true})
+			r.Stop(Cause{Reason: ReasonError, Code: failure.Code(failure.Internal), Err: work.NewPanicError(v), Panicked: true})
 		}
 	}()
 	err := fn(r.ctx, r.log)
@@ -30,16 +33,16 @@ func (r *run) runFunc(fn Func) {
 	if err != nil {
 		reason = ReasonError
 	}
-	r.stop(cause{reason: reason, code: failure.ExitCode(err), err: err})
+	r.Stop(Cause{Reason: reason, Code: failure.ExitCode(err), Err: err})
 }
 
-// wait blocks until the first cause, runs the sequence under the grace deadline, writes the
-// last line, flushes telemetry and returns the exit code. The deadline or a signal forces: the
-// sequence is abandoned where it is. The flush is bounded: 2 s when forced, else what is left
-// of the grace with a 2 s floor (the default grace when Grace is 0); the next signal during
-// the flush cuts it and the process exits with that signal's code; the line already written
-// keeps the code the sequence had.
-func (r *run) wait() int {
+// Wait blocks until the first cause, runs the sequence under the grace deadline, writes the
+// last line, flushes and returns the exit code. The deadline or Force forces: the sequence is
+// abandoned where it is. The flush is bounded: 2 s when forced, else what is left of the
+// grace with a 2 s floor (the default grace when the grace is 0); a second Force during the
+// flush cuts it and the code is that signal's; the line already written keeps the code the
+// sequence had.
+func (r *Run) Wait() int {
 	<-r.stopping
 	begin := time.Now()
 	var deadline <-chan time.Time
@@ -61,25 +64,25 @@ func (r *run) wait() int {
 	}
 
 	r.mu.Lock()
-	c, failed, forceSig, phase, step := r.cause, r.failed, r.forceSig, r.phase, r.current
+	c, failed, forceSig, phase, step := r.cause, len(r.failed), r.forceSig, r.phase, r.current
 	cut := r.forced
 	if r.forces > 0 {
 		cut = r.forced2
 	}
 	r.mu.Unlock()
-	code := c.code
+	code := c.Code
 	if forced && forceSig != 0 {
 		code = forceSig
 	}
 	r.lastLine(c, code, forced, failed, phase, step)
 
-	bound := flushForced
+	bound := FlushForced
 	if !forced {
 		grace := r.grace
 		if grace <= 0 {
 			grace = DefaultGrace
 		}
-		bound = max(grace-time.Since(begin), flushForced)
+		bound = max(grace-time.Since(begin), FlushForced)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), bound)
 	defer cancel()
@@ -95,9 +98,17 @@ func (r *run) wait() int {
 	return code
 }
 
+// Outcome reports the run after Wait: the reason of the last line (empty for process.crash,
+// which carries none) and the names of the steps that failed, in run order.
+func (r *Run) Outcome() (reason string, failedSteps []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.reason, append([]string(nil), r.failed...)
+}
+
 // sequence cancels ctx, waits for the Go goroutines, runs the steps in reverse order and waits
-// for fn. Failed steps are counted as they happen, so a forced line reports them.
-func (r *run) sequence() {
+// for fn. Failed steps are recorded as they happen, so a forced line reports them.
+func (r *Run) sequence() {
 	r.cancel()
 
 	r.setPhase(phaseGoroutines, "")
@@ -113,7 +124,7 @@ func (r *run) sequence() {
 		r.setPhase(phaseSteps, steps[i].name)
 		if err := r.runStep(steps[i]); err != nil {
 			r.mu.Lock()
-			r.failed++
+			r.failed = append(r.failed, steps[i].name)
 			r.mu.Unlock()
 			r.log.LogAttrs(r.ctx, slog.LevelError, "stop step failed", slog.String("step", steps[i].name), slog.Any("error", err))
 		}
@@ -124,7 +135,7 @@ func (r *run) sequence() {
 }
 
 // runStep runs one step; a panic in it is its error.
-func (r *run) runStep(s step) (err error) {
+func (r *Run) runStep(s step) (err error) {
 	defer func() {
 		if v := recover(); v != nil {
 			err = work.NewPanicError(v)
@@ -133,7 +144,7 @@ func (r *run) runStep(s step) (err error) {
 	return s.fn()
 }
 
-func (r *run) setPhase(phase, step string) {
+func (r *Run) setPhase(phase, step string) {
 	r.mu.Lock()
 	r.phase, r.current = phase, step
 	r.mu.Unlock()
@@ -142,35 +153,40 @@ func (r *run) setPhase(phase, step string) {
 // lastLine writes process.stop or process.crash, the last line of the run. A forced exit is
 // always process.stop with reason forced; a panic that was the cause keeps its exception.* on
 // that line. A panic that was not forced is process.crash.
-func (r *run) lastLine(c cause, code int, forced bool, stopErrors int, phase, step string) {
+func (r *Run) lastLine(c Cause, code int, forced bool, stopErrors int, phase, step string) {
 	attrs := []slog.Attr{slog.Int("exit_code", code), slog.Int("stop_errors", stopErrors)}
 	level := slog.LevelInfo
 	event := "process.stop"
+	reason := c.Reason
 	switch {
 	case forced:
 		level = slog.LevelWarn
-		attrs = append(attrs, slog.String("reason", ReasonForced), slog.String("phase", phase))
+		reason = ReasonForced
+		attrs = append(attrs, slog.String("reason", reason), slog.String("phase", phase))
 		if step != "" {
 			attrs = append(attrs, slog.String("step", step))
 		}
-		if c.panicked || c.reason == ReasonError {
-			attrs = append(attrs, slog.String("error.type", string(failure.ClassOf(c.err))), slog.Any("error", c.err))
+		if c.Panicked || c.Reason == ReasonError {
+			attrs = append(attrs, slog.String("error.type", string(failure.ClassOf(c.Err))), slog.Any("error", c.Err))
 		}
-	case c.panicked:
-		event, level = "process.crash", logging.LevelFatal
-		attrs = append(attrs, slog.Any("error", c.err))
+	case c.Panicked:
+		event, level, reason = "process.crash", logging.LevelFatal, ""
+		attrs = append(attrs, slog.Any("error", c.Err))
 	default:
-		attrs = append(attrs, slog.String("reason", c.reason))
-		if c.reason == ReasonError {
+		attrs = append(attrs, slog.String("reason", reason))
+		if c.Reason == ReasonError {
 			level = slog.LevelError
-			attrs = append(attrs, slog.String("error.type", string(failure.ClassOf(c.err))), slog.Any("error", c.err))
+			attrs = append(attrs, slog.String("error.type", string(failure.ClassOf(c.Err))), slog.Any("error", c.Err))
 		}
 	}
-	if c.signal != "" {
-		attrs = append(attrs, slog.String("signal", c.signal))
+	if c.Signal != "" {
+		attrs = append(attrs, slog.String("signal", c.Signal))
 	}
-	if c.goroutine != "" {
-		attrs = append(attrs, slog.String("goroutine", c.goroutine))
+	if c.Goroutine != "" {
+		attrs = append(attrs, slog.String("goroutine", c.Goroutine))
 	}
+	r.mu.Lock()
+	r.reason = reason
+	r.mu.Unlock()
 	r.log.LogAttrs(r.ctx, level, "", append([]slog.Attr{logging.Event(event)}, attrs...)...)
 }

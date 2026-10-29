@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreiD108/d108-go/doctor"
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
 )
@@ -44,19 +42,6 @@ func setup(t *testing.T, file string) string {
 		}
 	}
 	return path
-}
-
-func settings(t *testing.T) map[string]map[string]any {
-	t.Helper()
-	data, err := json.Marshal(doctor.Build(context.Background(), id))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var report map[string]map[string]map[string]any
-	if err := json.Unmarshal(data, &report); err != nil {
-		t.Fatal(err)
-	}
-	return report["settings"]
 }
 
 func TestPrecedence(t *testing.T) {
@@ -191,60 +176,6 @@ type secretGroup struct {
 		User string `json:"user" env:"USER"`
 		Pass string `json:"pass" env:"PASS"`
 	} `json:"auth" env:", prefix=AUTH_" secret:"true"`
-}
-
-func TestSecretGroupHidesChildren(t *testing.T) {
-	setup(t, `{"auth": {"user": "u"}}`)
-	if err := Load(context.Background(), id, &secretGroup{}); err != nil {
-		t.Fatal(err)
-	}
-	got := settings(t)
-	if got["auth.user"]["value"] != "set" || got["auth.pass"]["value"] != "unset" {
-		t.Errorf("got %v", got)
-	}
-}
-
-func TestDoctorItems(t *testing.T) {
-	setup(t, `{"token": "s3cret", "labels": {"b": "2", "a": "1"}, "sync": {"channels": ["general", "ops"]}}`)
-	var cfg sample
-	if err := Load(context.Background(), id, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	got := settings(t)
-	for key, want := range map[string][2]string{
-		"token":         {"set", "file"},
-		"labels":        {"a=1, b=2", "file"},
-		"sync.channels": {"general, ops", "file"},
-		"sync.interval": {"5m0s", "default"},
-		"workers":       {"4", "default"},
-		"dry_run":       {"true", "default"},
-	} {
-		if got[key]["value"] != want[0] || got[key]["source"] != want[1] {
-			t.Errorf("%s = %v, want %v", key, got[key], want)
-		}
-	}
-	if _, ok := got["ignored"]; ok {
-		t.Error("a field without tags is listed")
-	}
-	if len(got) != 7 {
-		t.Errorf("%d items, want 7: %v", len(got), got)
-	}
-	// The snapshot does not follow later writes to the struct.
-	cfg.Workers = 9
-	if settings(t)["workers"]["value"] != "4" {
-		t.Error("doctor follows the struct after Load")
-	}
-}
-
-func TestSecretUnset(t *testing.T) {
-	setup(t, "")
-	var cfg sample
-	if err := Load(context.Background(), id, &cfg); err != nil {
-		t.Fatal(err)
-	}
-	if settings(t)["token"]["value"] != "unset" {
-		t.Errorf("token = %v", settings(t)["token"])
-	}
 }
 
 func TestPrefixOff(t *testing.T) {

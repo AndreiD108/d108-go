@@ -6,6 +6,10 @@
 //	srv := httpserver.New(log, routes, httpserver.Addr("127.0.0.1:8080"), httpserver.CORS("https://app.example"))
 //	lifecycle.OnStop(ctx, "http", func() error { return srv.Shutdown(context.Background()) })
 //	return srv.ListenAndServe(ctx)
+//
+// Under lifecycle.Run the stop step "http" is the server's drain: Shutdown waits for the
+// running requests, so the steps registered before it (store, watcher) run after the drain,
+// and ListenAndServe returns once the step has run.
 package httpserver
 
 import (

@@ -4,10 +4,12 @@
 package paths
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/AndreiD108/d108-go/identity"
 )
@@ -31,10 +33,20 @@ type Paths struct {
 // Option changes how For resolves.
 type Option func(*resolver)
 
-// Prefix sets the environment prefix (with its trailing underscore, as identity.EnvPrefix
-// gives it) when it differs from the one derived from the app name.
+// Prefix sets the environment prefix without its trailing underscore ("SLACK_CLI"), the form
+// identity.Prefix takes, when it differs from the one derived from the app name:
+// paths.For(id.Name, paths.Prefix(id.Prefix)). Empty keeps the derived prefix. A prefix with
+// a trailing underscore is a programming error and panics, so "SLACK_CLI_" cannot read
+// SLACK_CLI__CONFIG_DIR silently.
 func Prefix(prefix string) Option {
-	return func(r *resolver) { r.prefix = prefix }
+	if strings.HasSuffix(prefix, "_") {
+		panic(fmt.Sprintf("paths.Prefix(%q): give the prefix without the trailing underscore", prefix))
+	}
+	return func(r *resolver) {
+		if prefix != "" {
+			r.prefix = prefix + "_"
+		}
+	}
 }
 
 type resolver struct {
@@ -102,4 +114,27 @@ func (r resolver) pick(appVar, baseVar, def string) string {
 
 func (r resolver) tmpRuntime() string {
 	return filepath.Join("/tmp", r.app+"-"+strconv.Itoa(r.uid))
+}
+
+// TestEnv returns the variables that put every directory of an app under dir, as NAME=value
+// strings for exec.Cmd.Env or t.Setenv: <PREFIX>_CONFIG_DIR=<dir>/config, _DATA_DIR=<dir>/data,
+// _STATE_DIR=<dir>/state, _LOGS_DIR=<dir>/logs, _CACHE_DIR=<dir>/cache, _RUNTIME_DIR=<dir>/run,
+// plus LOG_OUTPUT=stderr so the run writes no log file. prefix is without the trailing
+// underscore ("SLACK_CLI"). It does not clear what the parent environment carries: an
+// inherited <PREFIX>_LOG_OUTPUT wins over LOG_OUTPUT, and OTEL_* and TRACEPARENT would send
+// the run's spans and trace to the real agent; a harness that builds a child environment
+// strips those first.
+func TestEnv(prefix, dir string) []string {
+	if strings.HasSuffix(prefix, "_") {
+		panic(fmt.Sprintf("paths.TestEnv(%q): give the prefix without the trailing underscore", prefix))
+	}
+	return []string{
+		prefix + "_CONFIG_DIR=" + filepath.Join(dir, "config"),
+		prefix + "_DATA_DIR=" + filepath.Join(dir, "data"),
+		prefix + "_STATE_DIR=" + filepath.Join(dir, "state"),
+		prefix + "_LOGS_DIR=" + filepath.Join(dir, "logs"),
+		prefix + "_CACHE_DIR=" + filepath.Join(dir, "cache"),
+		prefix + "_RUNTIME_DIR=" + filepath.Join(dir, "run"),
+		"LOG_OUTPUT=stderr",
+	}
 }

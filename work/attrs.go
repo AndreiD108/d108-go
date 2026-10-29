@@ -1,14 +1,19 @@
 // Package work is the unit of work of standard.md section 4: one wide event per CLI command
-// run (command.run) and per handled HTTP request (request.handled), a span that continues the
-// caller's trace, attributes gathered while the unit runs, TRACEPARENT for child processes and
-// job.progress for long jobs. It works without lifecycle.Run and without tracing.Setup; with
-// tracing off the span is a no-op and the line carries no trace ids of its own.
+// run (command.run) and per handled request (request.handled, from the HTTP middleware or
+// from Request for a socket or RPC server), a span that continues the caller's trace,
+// attributes gathered while the unit runs, TRACEPARENT for child processes and job.progress
+// for long jobs. It works without lifecycle.Run and without tracing.Setup; with tracing off
+// the span is a no-op and the line carries no trace ids of its own.
 //
 //	ctx, end := work.Command(ctx, log, "index rebuild", flags)
 //	work.Add(ctx, "index.size", n)
 //	end(err)
 //
 //	srv := &http.Server{Handler: work.HTTP(log)(mux)}
+//
+//	ctx, end := work.Request(ctx, log, req.Op, work.Traceparent(req.Traceparent), work.Caller(req.CallerID))
+//	data, err := handle(ctx, req)
+//	end(err)
 //
 // Outgoing calls pass the trace on without a wrapper of this library: an HTTP client uses
 // go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp,

@@ -471,3 +471,13 @@ func TestBadEnvRefusesToStart(t *testing.T) {
 		t.Error("process.start must not be written on a refused start")
 	}
 }
+
+func TestRunSetsTheDefaultLogger(t *testing.T) {
+	r := run(t, "defaultlog")
+	if r.code != 0 {
+		t.Fatalf("exit %d; stderr %s", r.code, r.stderr)
+	}
+	if len(r.lines) != 3 || r.lines[1].str("body") != "through the default logger" || r.lines[1].str("k") != "v" || r.lines[1].str("service.name") != "lifecycle-test" {
+		t.Errorf("lines %v, want the default logger's line between process.start and process.stop", r.lines)
+	}
+}

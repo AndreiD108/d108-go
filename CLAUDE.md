@@ -4,7 +4,7 @@ The Go library of the d108 observability contract (`../d108/standard.md`): one p
 job, built in the order the standard's section 9 lists them. This batch holds the parts that
 name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
 the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`), the
-process owner (`lifecycle`), the CLI kit (`cli`, `cli/clitest`, `doctor`) and the two kinds of
+process owner (`lifecycle`, with `lifecycletest` for service tests), the CLI kit (`cli`, `cli/clitest`, `doctor`) and the two kinds of
 configuration (`config`, `secrets`).
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
@@ -40,18 +40,21 @@ logging/                 slog.Handler writing the standard's JSON line; files, c
   files_test.go          Rollover, size cap and reopen, dropped count, partial write, retention, 8 goroutines and 8 processes
   value_test.go          Nested NaN keeps siblings, inline groups under WithGroup, json.Number grammar, structs, cycles
 paths/                   The six per-app directories on Linux and macOS, env overrides
-  paths.go               Paths struct, For with the Prefix option, resolution order per platform
+  paths.go               Paths struct, For with the Prefix option (no trailing underscore), resolution order, TestEnv
   paths_test.go          Defaults per platform, resolution order, env through For
+  testenv_test.go        TestEnv values and resolution, the inherited app variable wins, prefix form and panics in paths and config
 atomicfile/              Temp file, sync and rename writes
   atomicfile.go          Write(path, data, mode); creates the parent 0700
   atomicfile_test.go     Mode, overwrite, no temp left, target kept on failure
 work/                    Units of work (section 4): command.run, request.handled, span, Add, Env, job.progress
   attrs.go               Package doc; Add/AddAll onto the unit's AttrSet; slog attrs to span attrs; endSpan
   command.go             Command: span (parent from ctx or TRACEPARENT), end writes command.run; outcomeOf
+  request.go             Request for socket and RPC servers: Traceparent and Caller options, server span, request.handled with rpc.method
   http.go                HTTP middleware: traceparent, caller.id, panic to 500 or abort, request.handled; SetRoute; status writer
   env.go                 Env (TRACEPARENT/TRACESTATE for children), parentFromEnv; the W3C propagator used directly
   progress.go            NewProgress/Done: job.progress every total/20 items, 10 s, or at the total
   command_test.go        Line fields per outcome, end once, Add outside a unit, TRACEPARENT in, span attrs equal the line
+  request_test.go        request.handled per outcome, caller.id on inner lines, traceparent in, bad traceparent is a root, span attrs
   http_test.go           Fields, panic 500 or abort, ErrAbortHandler line, 1xx, SetRoute via clone, traceparent, Flusher
   env_test.go            Env nil without span, header values, round trip through a child test process
   progress_test.go       Every twentieth, last item, small totals, unknown total by time, interval with total
@@ -64,16 +67,22 @@ metrics/                 Metric SDK, same switch and resource
 httpserver/              http.Server with work.HTTP, /healthz, CORS, pprof
   httpserver.go          New with Addr/CORS/Pprof, hand dispatch so r.Pattern stays the app's; ListenAndServe(ctx); Shutdown
   httpserver_test.go     /healthz silent, panic line, no route for a plain handler, CORS, pprof, cancel waits for requests
-lifecycle/               Run owns main: setup, process.start, the stop sequence, process.stop/crash, flush, exit code
-  lifecycle.go           Package doc, options (Grace, Heartbeat, Logging), Run and start: logger, Check, SDKs, process.start
-  run.go                 The run state in ctx, reasons, cause; OnStop, Stop, Go; stop records the first cause, logs late ones
-  stop.go                runFunc, wait (grace timer, forced), sequence (cancel, goroutines, steps reversed, fn), the last line
+lifecycle/               Run owns main: setup, default logger, process.start, the stop sequence, process.stop/crash, flush, exit code
+  lifecycle.go           Package doc, options (Grace, Heartbeat, Logging), Run and start: logger, Check, SDKs, slog.SetDefault, process.start
+  run.go                 The reasons; OnStop, Stop, Go over the run in ctx
   signals.go             SIGINT/SIGTERM/SIGHUP to the cause, a later signal forces; the signal codes (129, 130, 143)
   heartbeat.go           process.heartbeat every interval until the stop
   lifecycle_test.go      Parent side: runs the test binary per scenario, reads the log file through logcheck, asserts
-  scenarios_test.go      The child scenarios: clean, signals, stop, failing and hanging steps, panics, late causes, forcing, cap, flush
+  scenarios_test.go      The child scenarios: clean, signals, stop, failing and hanging steps, panics, late causes, forcing, cap, flush, default logger
   internal_test.go       Heartbeat interval, second Run panics, foreign ctx panics
   example_test.go        The section 9.1 server, compiled
+  internal/
+    run/                 The run state and the stop sequence, shared by lifecycle and lifecycletest
+      run.go             Run in ctx, Options, Cause; New, FromContext, OnStop, Go, Stop (first cause, late ones logged), Force
+      stop.go            RunFunc, Wait (grace timer, forced, flush), Outcome, sequence (cancel, goroutines, steps reversed, fn), the last line
+  lifecycletest/         The stop sequence in-process for a service test
+    lifecycletest.go     Run(t, fn, opts) Result: the run over a buffer logger set as slog.Default, no signals or SDKs; Lines for logcheck
+    lifecycletest_test.go  Stop order after the Go drain, default logger in and restored, failing steps, panics, two runs, grace forces
 cli/                     The Cobra tree of a tool (section 9.2): --format, Output, envelope, work.Command per run
   root.go                Package doc, Root (identity, --format, doctor, help command, usage template with Formats), Group, IdentityOf
   command.go             Runner, Formats, Command (Use line); runLeaf: format check, work.Command, leaf in ctx, recover, args.flags
@@ -93,11 +102,12 @@ doctor/                  The report behind every tool's doctor command
   doctor.go              Item/Section/Report, Add hook, Build (program, logging, telemetry probe), Text, ordered MarshalJSON
   doctor_test.go         Env to items, logger in ctx wins, fallback, today's file, tracing switch, probe, Add order, text and JSON
 config/                  Settings (section 9.5): config.json then the environment through go-envconfig, one parser for both
-  load.go                Package doc (precedence, file values as variable strings), Prefix option, Load, error classing
-  fields.go              The struct walk: a setting is a field with json and env tags; tag parsing; the env-then-file Lookuper
+  load.go                Package doc (precedence, file values as variable strings), Prefix option (no trailing underscore), Load, error classing
+  fields.go              The struct walk: a setting is a field with json and env tags; tag parsing; the env-then-file Lookuper, resolved so far
   file.go                config.json to parser strings per setting; unknown keys and wrong shapes are usage failures
-  doctor.go              The "settings" section: a snapshot at Load with value and source; secret fields as set or unset
-  config_test.go         Precedence matrix, doctor items, Prefix(""), every error message, bad structs panic, embedded and pointers
+  doctor.go              The "settings" section: a snapshot at Load with value and source; secret fields as set or unset; the error item on a failed Load
+  config_test.go         Precedence matrix, Prefix(""), every error message, bad structs panic, embedded and pointers
+  doctor_test.go         Doctor items and sources, secret fields and groups, the settings section after a failed Load
 secrets/                 One encrypted file of names and values (section 9.5): AES-256-GCM, HKDF over a key file and the machine id
   store.go               Package doc, Store (Open, Save, Load, Delete, Names), read and write through atomicfile, failure classes
   crypto.go              The file format constants, envelope, deriveKey, seal, open; errFormat and errOpen

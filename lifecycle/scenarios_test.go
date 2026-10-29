@@ -173,6 +173,13 @@ var scenarios = map[string]scenario{
 		}()
 		return nil
 	}, opts: []lifecycle.Option{lifecycle.Grace(200 * time.Millisecond)}},
+	"defaultlog": {fn: func(ctx context.Context, log *slog.Logger) error {
+		if slog.Default() != log {
+			return errors.New("slog.Default is not the run's logger")
+		}
+		slog.InfoContext(ctx, "through the default logger", "k", "v")
+		return nil
+	}},
 	"late-onstop": {fn: func(ctx context.Context, log *slog.Logger) error {
 		lifecycle.Stop(ctx)
 		<-ctx.Done()

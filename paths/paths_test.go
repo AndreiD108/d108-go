@@ -87,7 +87,7 @@ func TestForUsesTheEnvironment(t *testing.T) {
 	if p.Data != "/srv/data" {
 		t.Errorf("Data = %q", p.Data)
 	}
-	p = For("my-tool", Prefix("MT_"))
+	p = For("my-tool", Prefix("MT"))
 	if p.Data == "/srv/data" {
 		t.Error("a custom prefix must not read MY_TOOL_DATA_DIR")
 	}

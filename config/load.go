@@ -15,7 +15,9 @@
 //
 // Load registers the doctor section "settings": every setting with its effective value and
 // source (`file`, `env NAME`, `default`); a field tagged `secret:"true"` shows `set` or
-// `unset`. Flags are the app's: it applies them after Load.
+// `unset`. When Load fails the section still exists: the settings resolved before the
+// failure, then the item `error` with the message and the next step, so an app that keeps
+// the error can let its doctor command run. Flags are the app's: it applies them after Load.
 package config
 
 import (
@@ -25,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
@@ -38,10 +41,17 @@ const FileName = "config.json"
 // Option changes how Load reads.
 type Option func(*loader)
 
-// Prefix sets the variable prefix (with its trailing underscore). Load uses the identity's
-// EnvPrefix when the option is absent. Prefix("") turns the prefix off, for a struct of
-// foreign names loaded on its own.
+// Prefix sets the variable prefix without its trailing underscore ("SLACK_CLI"), the form
+// identity.Prefix takes. Load uses the identity's prefix when the option is absent.
+// Prefix("") turns the prefix off, for a struct of foreign names loaded on its own. A prefix
+// with a trailing underscore is a programming error and panics.
 func Prefix(prefix string) Option {
+	if strings.HasSuffix(prefix, "_") {
+		panic(fmt.Sprintf("config.Prefix(%q): give the prefix without the trailing underscore", prefix))
+	}
+	if prefix != "" {
+		prefix += "_"
+	}
 	return func(l *loader) { l.prefix = &prefix }
 }
 
@@ -66,9 +76,10 @@ func Load(ctx context.Context, id identity.Identity, cfg any, opts ...Option) er
 		panic(fmt.Sprintf("config.Load: cfg must be a pointer to a struct, got %T", cfg))
 	}
 	fs := fields(v.Elem().Type(), prefix)
-	path := filepath.Join(paths.For(id.Name, paths.Prefix(id.EnvPrefix())).Config, FileName)
+	path := filepath.Join(paths.For(id.Name, paths.Prefix(id.Prefix)).Config, FileName)
 	fileValues, err := readFile(path, fs)
 	if err != nil {
+		registerDoctor(v.Elem(), nil, err)
 		return err
 	}
 	lk := &lookup{byName: map[string]*field{}, file: fileValues, getenv: os.LookupEnv}
@@ -81,16 +92,18 @@ func Load(ctx context.Context, id identity.Identity, cfg any, opts ...Option) er
 			target.Set(reflect.Zero(target.Type()))
 		}
 	}
-	lk.last = nil
+	lk.last, lk.resolved = nil, nil
 	err = envconfig.ProcessWith(ctx, &envconfig.Config{
 		Target:           cfg,
 		Lookuper:         envconfig.PrefixLookuper(prefix, lk),
 		DefaultOverwrite: true,
 	})
 	if err != nil {
-		return classify(err, lk.last, path)
+		err = classify(err, lk.last, path)
+		registerDoctor(v.Elem(), lk.resolved, err)
+		return err
 	}
-	registerDoctor(v.Elem(), fs)
+	registerDoctor(v.Elem(), fs, nil)
 	return nil
 }
 

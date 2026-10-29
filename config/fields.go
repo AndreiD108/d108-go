@@ -204,17 +204,24 @@ func isDecoder(t reflect.Type) bool {
 }
 
 // lookup answers go-envconfig: the environment first, then the file. It records the source
-// of every setting it answers and the last setting asked, so a parse error can be named.
+// of every setting it answers, the settings resolved so far and the last setting asked, so
+// a parse error can be named and the doctor section lists what was resolved before it.
 type lookup struct {
 	byName map[string]*field
 	file   map[string]string
 	getenv func(string) (string, bool)
-	last   *field
+	// resolved holds the settings asked before last, in order: the parser sets each field
+	// before it asks for the next, so these hold their values when last fails.
+	resolved []*field
+	last     *field
 }
 
 func (l *lookup) Lookup(name string) (string, bool) {
 	f := l.byName[name]
-	if f != nil {
+	if f != nil && f != l.last {
+		if l.last != nil {
+			l.resolved = append(l.resolved, l.last)
+		}
 		l.last = f
 	}
 	if v, ok := l.getenv(name); ok {

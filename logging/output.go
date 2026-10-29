@@ -44,7 +44,7 @@ type Settings struct {
 // the file; <APP>_LOG_LEVEL, LOG_LEVEL, then info.
 func Resolve(id identity.Identity) Settings {
 	s := Settings{Output: OutputFile, OutputSource: "default", Level: slog.LevelInfo, LevelSource: "default"}
-	s.Dir = paths.For(id.Name, paths.Prefix(id.EnvPrefix())).Logs
+	s.Dir = paths.For(id.Name, paths.Prefix(id.Prefix)).Logs
 
 	for _, name := range []string{id.EnvPrefix() + "LOG_OUTPUT", "LOG_OUTPUT"} {
 		v := os.Getenv(name)

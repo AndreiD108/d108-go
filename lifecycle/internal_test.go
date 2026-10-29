@@ -8,17 +8,18 @@ import (
 	"time"
 
 	"github.com/AndreiD108/d108-go/identity"
+	"github.com/AndreiD108/d108-go/lifecycle/internal/run"
 	"github.com/AndreiD108/d108-go/logging"
 )
 
 func TestHeartbeatUntilStop(t *testing.T) {
 	var buf bytes.Buffer
 	id := identity.Identity{Name: "beat", Version: "1.0.0", InstanceID: "01JBX7Q2M9K4T8V6W3R5N1P0ZD", PID: os.Getpid()}
-	r := newRun(logging.New(id, logging.Writer(&buf)), 0)
+	r := run.New(logging.New(id, logging.Writer(&buf)), 0, nil)
 	done := make(chan struct{})
-	go func() { r.heartbeat(10 * time.Millisecond); close(done) }()
+	go func() { heartbeat(r, 10*time.Millisecond); close(done) }()
 	time.Sleep(55 * time.Millisecond)
-	r.stop(cause{reason: ReasonApp})
+	r.Stop(run.Cause{Reason: ReasonApp})
 	<-done
 	n := strings.Count(buf.String(), `"event_name":"process.heartbeat"`)
 	if n < 2 || n > 6 {

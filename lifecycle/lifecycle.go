@@ -24,6 +24,10 @@
 //
 // Teardown is OnStop steps, not defers. os.Exit and log.Fatal inside the function skip the
 // sequence; so does a panic in a goroutine started with plain go (section 6).
+//
+// Run makes its logger the default of log/slog, so a line written through slog.Info or a
+// library that logs through slog.Default is the standard's line. A service test runs fn
+// through the same sequence in-process with lifecycletest.Run.
 package lifecycle
 
 import (
@@ -38,42 +42,34 @@ import (
 
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
+	"github.com/AndreiD108/d108-go/lifecycle/internal/run"
 	"github.com/AndreiD108/d108-go/logging"
 	"github.com/AndreiD108/d108-go/metrics"
 	"github.com/AndreiD108/d108-go/tracing"
 )
 
 // DefaultGrace is the time the stop sequence gets before Run forces the exit.
-const DefaultGrace = 10 * time.Second
+const DefaultGrace = run.DefaultGrace
 
 // HeartbeatInterval is the time between two process.heartbeat lines.
 const HeartbeatInterval = 60 * time.Second
-
-// flushForced bounds the telemetry flush of a forced exit.
-const flushForced = 2 * time.Second
 
 // Func is the app's function: it returns when the app is done or when ctx is cancelled.
 type Func func(ctx context.Context, log *slog.Logger) error
 
 // Option configures Run.
-type Option func(*options)
-
-type options struct {
-	grace     time.Duration
-	heartbeat bool
-	logging   []logging.Option
-}
+type Option func(*run.Options)
 
 // Grace sets how long the stop sequence may take before Run forces the exit (default
 // DefaultGrace). 0 or less never forces; a second signal still does.
-func Grace(d time.Duration) Option { return func(o *options) { o.grace = d } }
+func Grace(d time.Duration) Option { return func(o *run.Options) { o.Grace = d } }
 
 // Heartbeat turns the process.heartbeat line on or off (default on). Commands turn it off.
-func Heartbeat(on bool) Option { return func(o *options) { o.heartbeat = on } }
+func Heartbeat(on bool) Option { return func(o *run.Options) { o.Heartbeat = on } }
 
 // Logging passes options to logging.New: KeepDays, MaxFileBytes and the rest.
 func Logging(opts ...logging.Option) Option {
-	return func(o *options) { o.logging = append(o.logging, opts...) }
+	return func(o *run.Options) { o.Logging = append(o.Logging, opts...) }
 }
 
 var started atomic.Bool
@@ -91,23 +87,24 @@ func start(id identity.Identity, fn Func, opts ...Option) int {
 	if !started.CompareAndSwap(false, true) {
 		panic("lifecycle.Run: called twice in one process")
 	}
-	o := options{grace: DefaultGrace, heartbeat: true}
+	o := run.Options{Grace: DefaultGrace, Heartbeat: true}
 	for _, opt := range opts {
 		opt(&o)
 	}
-	log := logging.New(id, o.logging...)
+	log := logging.New(id, o.Logging...)
 	if err := logging.Check(id); err != nil {
 		_ = failure.Write(os.Stderr, err)
 		return failure.ExitCode(err)
 	}
 
-	r := newRun(log, o.grace)
-	ctx := r.ctx
-	flushTracing := tracing.Setup(ctx, id)
-	flushMetrics := metrics.Setup(ctx, id)
-	r.flush = func(ctx context.Context) error {
+	var flushTracing, flushMetrics func(context.Context) error
+	r := run.New(log, o.Grace, func(ctx context.Context) error {
 		return errors.Join(flushTracing(ctx), flushMetrics(ctx))
-	}
+	})
+	ctx := r.Context()
+	flushTracing = tracing.Setup(ctx, id)
+	flushMetrics = metrics.Setup(ctx, id)
+	slog.SetDefault(log)
 
 	exe, _ := os.Executable()
 	log.LogAttrs(ctx, slog.LevelInfo, "", logging.Event("process.start"),
@@ -116,11 +113,11 @@ func start(id identity.Identity, fn Func, opts ...Option) int {
 		slog.String("process.runtime.name", "go"),
 		slog.String("process.runtime.version", strings.TrimPrefix(runtime.Version(), "go")))
 
-	go r.watchSignals(notifySignals())
-	if o.heartbeat {
-		go r.heartbeat(HeartbeatInterval)
+	go watchSignals(r, notifySignals())
+	if o.Heartbeat {
+		go heartbeat(r, HeartbeatInterval)
 	}
-	go r.runFunc(fn)
+	go r.RunFunc(fn)
 
-	return r.wait()
+	return r.Wait()
 }

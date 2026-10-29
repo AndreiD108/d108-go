@@ -41,7 +41,7 @@ type Store struct {
 // Open gives the store of id's Config directory and registers its doctor section. It
 // reads nothing until the first call.
 func Open(id identity.Identity) *Store {
-	dir := paths.For(id.Name, paths.Prefix(id.EnvPrefix())).Config
+	dir := paths.For(id.Name, paths.Prefix(id.Prefix)).Config
 	s := &Store{file: filepath.Join(dir, FileName), key: filepath.Join(dir, KeyFileName)}
 	s.registerDoctor()
 	return s

@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/AndreiD108/d108-go/failure"
+	"github.com/AndreiD108/d108-go/lifecycle/internal/run"
 )
 
 // codeHangup is the exit code of SIGHUP (128 + 1); the failure table has no class for it.
@@ -21,31 +22,15 @@ func notifySignals() <-chan os.Signal {
 
 // watchSignals turns the first signal into the stop cause. A signal after the sequence
 // started forces the exit.
-func (r *run) watchSignals(ch <-chan os.Signal) {
+func watchSignals(r *run.Run, ch <-chan os.Signal) {
 	for sig := range ch {
 		code, name := signalCode(sig)
 		select {
-		case <-r.stopping:
-			r.force(code)
+		case <-r.Stopping():
+			r.Force(code)
 		default:
-			r.stop(cause{reason: ReasonSignal, code: code, signal: name})
+			r.Stop(run.Cause{Reason: ReasonSignal, Code: code, Signal: name})
 		}
-	}
-}
-
-// force ends the sequence at once; code is the forcing signal's exit code, the process exits
-// with it. A second forcing signal cuts the flush that follows the forced process.stop.
-func (r *run) force(code int) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.forces++
-	r.lastSig = code
-	switch r.forces {
-	case 1:
-		r.forceSig = code
-		close(r.forced)
-	case 2:
-		close(r.forced2)
 	}
 }
 

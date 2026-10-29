@@ -7,14 +7,22 @@ import (
 	"strings"
 
 	"github.com/AndreiD108/d108-go/doctor"
+	"github.com/AndreiD108/d108-go/failure"
 )
 
 // registerDoctor snapshots the settings after Load: the struct's values are read once, so
-// the report does not race with the app's later writes to the struct.
-func registerDoctor(v reflect.Value, fs []*field) {
-	items := make([]doctor.Item, 0, len(fs))
+// the report does not race with the app's later writes to the struct. fs are the settings
+// Load resolved: all of them on success, the ones before the failed one on a failure, and
+// then the item "error" with the failure's message and its next step as the note follows
+// them, so the app can keep the error and still let doctor run.
+func registerDoctor(v reflect.Value, fs []*field, err error) {
+	items := make([]doctor.Item, 0, len(fs)+1)
 	for _, f := range fs {
 		items = append(items, doctor.Item{Key: f.key, Value: render(fieldValue(v, f.index), f.secret), Source: f.sourceText()})
+	}
+	if err != nil {
+		f := failure.From(err)
+		items = append(items, doctor.Item{Key: "error", Value: f.Message, Note: f.NextStep})
 	}
 	doctor.Add("settings", func() []doctor.Item { return items })
 }
