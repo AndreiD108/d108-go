@@ -1,0 +1,488 @@
+{
+  "about": "Conformance corpus for every logging library (standard.md). Each case is one call in a fixed context. A library passes when, for every case, its line parses to exactly the expected object, 'timestamp' is the first key, nothing is written when expected is null, and every check in 'checks' holds.",
+  "context": {
+    "service.name": "golden",
+    "service.version": "1.0.0",
+    "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+    "now": "2026-10-27T14:03:11.482913Z",
+    "min_level": "info",
+    "process.pid": 4242
+  },
+  "order": "Only rule: timestamp is the first key. Other keys may come in any order.",
+  "call_format": "level: debug|info|warn|error|fatal; msg; event: event name or null; attrs: ordered [key, value] pairs, a value that is an object means a group whose keys join with '.'; error: {type, message, stack} or null; span: {trace_id, span_id} or null; a value {\"repeat\": s, \"count\": n} means the string s repeated n times; run: a unit of work ended through the library (command.run or request.handled)",
+  "cases": [
+    {
+      "name": "plain info line",
+      "call": {
+        "level": "info",
+        "msg": "listening",
+        "event": null,
+        "attrs": [
+          [
+            "addr",
+            ":8080"
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "listening",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "addr": ":8080"
+      }
+    },
+    {
+      "name": "debug below the minimum level writes nothing",
+      "call": {
+        "level": "debug",
+        "msg": "cache miss",
+        "event": null,
+        "attrs": [
+          [
+            "key",
+            "k1"
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": null
+    },
+    {
+      "name": "warn maps to 13",
+      "call": {
+        "level": "warn",
+        "msg": "retrying",
+        "event": null,
+        "attrs": [
+          [
+            "attempt",
+            2
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 13,
+        "severity_text": "WARN",
+        "body": "retrying",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "attempt": 2
+      }
+    },
+    {
+      "name": "event with typed attributes",
+      "call": {
+        "level": "info",
+        "msg": "",
+        "event": "job.progress",
+        "attrs": [
+          [
+            "job.name",
+            "reindex"
+          ],
+          [
+            "job.id",
+            "01JBX8A1C2D3E4F5G6H7J8K9M0"
+          ],
+          [
+            "job.items_done",
+            1200
+          ],
+          [
+            "job.items_total",
+            5000
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "event_name": "job.progress",
+        "body": "",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "job.name": "reindex",
+        "job.id": "01JBX8A1C2D3E4F5G6H7J8K9M0",
+        "job.items_done": 1200,
+        "job.items_total": 5000
+      }
+    },
+    {
+      "name": "group flattens with dots",
+      "call": {
+        "level": "info",
+        "msg": "batch done",
+        "event": null,
+        "attrs": [
+          [
+            "batch",
+            {
+              "size": 64,
+              "ok": true
+            }
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "batch done",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "batch.size": 64,
+        "batch.ok": true
+      }
+    },
+    {
+      "name": "error becomes exception.*",
+      "call": {
+        "level": "error",
+        "msg": "sync failed",
+        "event": null,
+        "attrs": [],
+        "error": {
+          "type": "net.OpError",
+          "message": "dial tcp: i/o timeout",
+          "stack": null
+        },
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 17,
+        "severity_text": "ERROR",
+        "body": "sync failed",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "exception.type": "net.OpError",
+        "exception.message": "dial tcp: i/o timeout"
+      }
+    },
+    {
+      "name": "line inside a span carries its ids",
+      "call": {
+        "level": "info",
+        "msg": "fetched",
+        "event": null,
+        "attrs": [],
+        "error": null,
+        "span": {
+          "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+          "span_id": "00f067aa0ba902b7"
+        }
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "fetched",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "span_id": "00f067aa0ba902b7"
+      }
+    },
+    {
+      "name": "reserved keys from a call site do not overwrite fixed keys",
+      "call": {
+        "level": "info",
+        "msg": "imported",
+        "event": null,
+        "attrs": [
+          [
+            "timestamp",
+            "2020-01-01"
+          ],
+          [
+            "service.name",
+            "other"
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "imported",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "attr.timestamp": "2020-01-01",
+        "attr.service.name": "other"
+      }
+    },
+    {
+      "name": "line breaks stay inside one line",
+      "call": {
+        "level": "error",
+        "msg": "two\nlines",
+        "event": null,
+        "attrs": [
+          [
+            "detail",
+            "a\nb\tc"
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 17,
+        "severity_text": "ERROR",
+        "body": "two\nlines",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "detail": "a\nb\tc"
+      },
+      "checks": [
+        "the written output contains exactly one newline, at the end"
+      ]
+    },
+    {
+      "name": "oversized line is cut in the middle",
+      "call": {
+        "level": "info",
+        "msg": "dump",
+        "event": null,
+        "attrs": [
+          [
+            "payload",
+            {
+              "repeat": "a",
+              "count": 100000
+            }
+          ],
+          [
+            "small",
+            "keep"
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": "see checks",
+      "checks": [
+        "line length <= 65536 bytes including the newline",
+        "small == 'keep'",
+        "payload is <head>…[N bytes cut]…<tail>: head and tail are a prefix and a suffix of the input, N = input length - len(head) - len(tail), len(payload) >= 256",
+        "log.truncated == true",
+        "all fixed keys and body are present and unchanged"
+      ]
+    },
+    {
+      "name": "command.run wide event on success",
+      "call": {
+        "run": {
+          "command": "index rebuild",
+          "flags": [
+            "--force"
+          ],
+          "duration_ms": 8123,
+          "exit_code": 0,
+          "kind": "command"
+        }
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "event_name": "command.run",
+        "body": "",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "command": "index rebuild",
+        "args.flags": "--force",
+        "duration_ms": 8123,
+        "exit_code": 0,
+        "outcome": "ok"
+      }
+    },
+    {
+      "name": "command.run wide event on failure",
+      "call": {
+        "run": {
+          "command": "sync",
+          "flags": [],
+          "duration_ms": 512,
+          "exit_code": 1,
+          "error": {
+            "type": "net.OpError",
+            "message": "dial tcp: i/o timeout"
+          },
+          "kind": "command"
+        }
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 17,
+        "severity_text": "ERROR",
+        "event_name": "command.run",
+        "body": "",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "command": "sync",
+        "args.flags": "",
+        "duration_ms": 512,
+        "exit_code": 1,
+        "outcome": "error",
+        "error.type": "net.OpError",
+        "exception.type": "net.OpError",
+        "exception.message": "dial tcp: i/o timeout"
+      }
+    },
+    {
+      "name": "heartbeat event",
+      "call": {
+        "level": "info",
+        "msg": "",
+        "event": "process.heartbeat",
+        "attrs": [],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "event_name": "process.heartbeat",
+        "body": "",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242
+      }
+    },
+    {
+      "name": "request.handled wide event",
+      "call": {
+        "run": {
+          "kind": "request",
+          "http.request.method": "GET",
+          "http.route": "/search",
+          "http.response.status_code": 200,
+          "duration_ms": 42,
+          "caller.id": "session-7"
+        }
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "event_name": "request.handled",
+        "body": "",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "http.request.method": "GET",
+        "http.route": "/search",
+        "http.response.status_code": 200,
+        "duration_ms": 42,
+        "outcome": "ok",
+        "caller.id": "session-7"
+      }
+    },
+    {
+      "name": "arrays become JSON strings, null is left out",
+      "call": {
+        "level": "info",
+        "msg": "tags",
+        "event": null,
+        "attrs": [
+          [
+            "tags",
+            [
+              "a",
+              "b"
+            ]
+          ],
+          [
+            "missing",
+            null
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "tags",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "tags": "[\"a\",\"b\"]"
+      }
+    },
+    {
+      "name": "duplicate key: last wins",
+      "call": {
+        "level": "info",
+        "msg": "dup",
+        "event": null,
+        "attrs": [
+          [
+            "n",
+            1
+          ],
+          [
+            "n",
+            2
+          ]
+        ],
+        "error": null,
+        "span": null
+      },
+      "expected": {
+        "timestamp": "2026-10-27T14:03:11.482913Z",
+        "severity_number": 9,
+        "severity_text": "INFO",
+        "body": "dup",
+        "service.name": "golden",
+        "service.version": "1.0.0",
+        "service.instance.id": "01JBX7Q2M9K4T8V6W3R5N1P0ZD",
+        "process.pid": 4242,
+        "n": 2
+      }
+    }
+  ]
+}

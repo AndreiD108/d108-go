@@ -1,0 +1,235 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "log-line.schema.json",
+  "title": "One log line (see standard.md section 2)",
+  "type": "object",
+  "required": [
+    "timestamp",
+    "severity_number",
+    "severity_text",
+    "body",
+    "service.name",
+    "service.version",
+    "service.instance.id",
+    "process.pid"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6,9}Z$"
+    },
+    "severity_number": {
+      "enum": [
+        5,
+        9,
+        13,
+        17,
+        21
+      ]
+    },
+    "severity_text": {
+      "enum": [
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR",
+        "FATAL"
+      ]
+    },
+    "event_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$",
+      "maxLength": 128
+    },
+    "body": {
+      "type": "string"
+    },
+    "service.name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 63
+    },
+    "service.version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "service.instance.id": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "process.pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "alert": {
+      "type": "boolean"
+    },
+    "log.truncated": {
+      "type": "boolean"
+    }
+  },
+  "dependentRequired": {
+    "span_id": [
+      "trace_id"
+    ]
+  },
+  "propertyNames": {
+    "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+    "maxLength": 128
+  },
+  "additionalProperties": {
+    "type": [
+      "string",
+      "number",
+      "boolean"
+    ]
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "severity_text": {
+            "const": "DEBUG"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "severity_number": {
+            "const": 5
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "severity_text": {
+            "const": "INFO"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "severity_number": {
+            "const": 9
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "severity_text": {
+            "const": "WARN"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "severity_number": {
+            "const": 13
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "severity_text": {
+            "const": "ERROR"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "severity_number": {
+            "const": 17
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "severity_text": {
+            "const": "FATAL"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "severity_number": {
+            "const": 21
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "const": "job.progress"
+          }
+        },
+        "required": [
+          "event_name"
+        ]
+      },
+      "then": {
+        "required": [
+          "job.name",
+          "job.id",
+          "job.items_done"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "const": "command.run"
+          }
+        },
+        "required": [
+          "event_name"
+        ]
+      },
+      "then": {
+        "required": [
+          "command",
+          "duration_ms",
+          "exit_code",
+          "outcome"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_name": {
+            "const": "request.handled"
+          }
+        },
+        "required": [
+          "event_name"
+        ]
+      },
+      "then": {
+        "required": [
+          "duration_ms",
+          "outcome"
+        ]
+      }
+    }
+  ]
+}
