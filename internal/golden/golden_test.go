@@ -18,6 +18,7 @@ import (
 	"github.com/AndreiD108/d108/logcheck"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
 	"github.com/AndreiD108/d108-go/logging"
 )
@@ -302,8 +303,8 @@ func runCase(ctx context.Context, log *slog.Logger, run map[string]any) {
 	level := slog.LevelInfo
 	if errSpec != nil {
 		level = slog.LevelError
-		attrs = append(attrs, slog.String("error.type", errSpec.Type),
-			slog.Any("error", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("i/o timeout")}))
+		err := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("i/o timeout")}
+		attrs = append(attrs, slog.String("error.type", string(failure.ClassOf(err))), slog.Any("error", err))
 	}
 	log.LogAttrs(ctx, level, "", attrs...)
 }

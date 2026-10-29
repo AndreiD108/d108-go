@@ -2,7 +2,8 @@
 
 The Go library of the d108 observability contract (`../d108/standard.md`): one package per
 job, built in the order the standard's section 9 lists them. This batch holds the parts that
-name the program and write the line: `identity`, `failure`, `logging`, `paths`, `atomicfile`.
+name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
+and the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`).
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
 ## Scope
@@ -30,7 +31,8 @@ logging/                 slog.Handler writing the standard's JSON line; files, c
   output.go              Settings and Resolve (output and level with their sources), Check, journal detection
   files.go               Sinks: one write per line; dated files, rollover, size cap, log.capped, log.dropped, sweep
   text.go                Text rendering for stderr: time, level, event or body, key=value, long values indented
-  ctx.go                 WithAttrs and Attrs on the context; NewContext and FromContext for the logger
+  ctx.go                 WithAttrs/Attrs, AttrSet (the unit's mutable attrs), NewContext/FromContext, Flatten for spans
+  ctx_test.go            AttrSet on later lines, nesting, record over set over fixed precedence, nil set
   logging_test.go        Value conversions, errors, groups, context precedence, env level and output, fallback, text
   truncate_test.go       Longest first, ties, once per value, floor, UTF-8 boundaries, unfittable line, sentinel digits
   files_test.go          Rollover, size cap and reopen, dropped count, partial write, retention, 8 goroutines and 8 processes
@@ -41,7 +43,29 @@ paths/                   The six per-app directories on Linux and macOS, env ove
 atomicfile/              Temp file, sync and rename writes
   atomicfile.go          Write(path, data, mode); creates the parent 0700
   atomicfile_test.go     Mode, overwrite, no temp left, target kept on failure
+work/                    Units of work (section 4): command.run, request.handled, span, Add, Env, job.progress
+  attrs.go               Package doc; Add/AddAll onto the unit's AttrSet; slog attrs to span attrs; endSpan
+  command.go             Command: span (parent from ctx or TRACEPARENT), end writes command.run; outcomeOf
+  http.go                HTTP middleware: traceparent, caller.id, panic to 500 or abort, request.handled; SetRoute; status writer
+  env.go                 Env (TRACEPARENT/TRACESTATE for children), parentFromEnv; the W3C propagator used directly
+  progress.go            NewProgress/Done: job.progress every total/20 items, 10 s, or at the total
+  command_test.go        Line fields per outcome, end once, Add outside a unit, TRACEPARENT in, span attrs equal the line
+  http_test.go           Fields, panic 500 or abort, ErrAbortHandler line, 1xx, SetRoute via clone, traceparent, Flusher
+  env_test.go            Env nil without span, header values, round trip through a child test process
+  progress_test.go       Every twentieth, last item, small totals, unknown total by time, interval with total
+tracing/                 Trace SDK on when OTEL_EXPORTER_OTLP_ENDPOINT is set
+  tracing.go             Setup: OTLP gRPC exporter, batcher, identity resource, W3C propagators; shutdown flushes
+  tracing_test.go        Off: no SDK provider, no goroutines; on: provider, propagator fields, bounded shutdown
+metrics/                 Metric SDK, same switch and resource
+  metrics.go             Setup: OTLP gRPC exporter, periodic reader every 60 s; shutdown flushes
+  metrics_test.go        Off: no SDK provider, no goroutines; on: provider, a counter, bounded shutdown
+httpserver/              http.Server with work.HTTP, /healthz, CORS, pprof
+  httpserver.go          New with Addr/CORS/Pprof, hand dispatch so r.Pattern stays the app's; ListenAndServe(ctx); Shutdown
+  httpserver_test.go     /healthz silent, panic line, no route for a plain handler, CORS, pprof, cancel waits for requests
 internal/
+  otelres/               Shared by tracing and metrics
+    otelres.go           EndpointVar switch, identity resource over the SDK default, error handler to the logger
+    otelres_test.go      Resource attributes, Enabled, WARN line from the error handler
   golden/                Acceptance test against the contract's corpus
     cases.json           Copy of ../d108/golden/cases.json
     log-line.schema.json Copy of ../d108/schema/log-line.schema.json

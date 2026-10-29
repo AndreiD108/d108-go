@@ -362,7 +362,7 @@
         "duration_ms": 512,
         "exit_code": 1,
         "outcome": "error",
-        "error.type": "net.OpError",
+        "error.type": "internal",
         "exception.type": "net.OpError",
         "exception.message": "dial tcp: i/o timeout"
       }
