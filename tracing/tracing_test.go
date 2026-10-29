@@ -2,6 +2,8 @@ package tracing
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,7 +55,8 @@ func TestSetupOnWithEndpoint(t *testing.T) {
 		t.Fatalf("provider is %T", otel.GetTracerProvider())
 	}
 	fields := otel.GetTextMapPropagator().Fields()
-	if len(fields) != 3 || fields[0] != "traceparent" || fields[1] != "tracestate" || fields[2] != "baggage" {
+	slices.Sort(fields)
+	if strings.Join(fields, " ") != "baggage traceparent tracestate" {
 		t.Errorf("propagator fields %v", fields)
 	}
 	_, span := otel.Tracer("t").Start(context.Background(), "x")

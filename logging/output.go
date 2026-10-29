@@ -19,12 +19,14 @@ const (
 	OutputStderr = "stderr"
 )
 
-// Settings is what the environment asks of the logger, with the source of each choice, so
-// doctor can print "where the logs go and why".
+// Settings is what the environment asks of the logger (Resolve) or what a logger does
+// (SettingsOf), with the source of each choice, so doctor can print "where the logs go and
+// why".
 type Settings struct {
-	// Output is stdout, file or stderr.
+	// Output is stdout, file or stderr; "writer" for a logger with the Writer option.
 	Output string
-	// OutputSource names what chose Output: the variable, the detection, or "default".
+	// OutputSource names what chose Output: the variable, the detection, "default", an option,
+	// or the fallback with its reason.
 	OutputSource string
 	// Level is the minimum level written.
 	Level slog.Level

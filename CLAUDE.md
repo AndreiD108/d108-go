@@ -3,8 +3,8 @@
 The Go library of the d108 observability contract (`../d108/standard.md`): one package per
 job, built in the order the standard's section 9 lists them. This batch holds the parts that
 name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
-the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`) and
-the process owner (`lifecycle`).
+the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`), the
+process owner (`lifecycle`) and the CLI kit (`cli`, `cli/clitest`, `doctor`).
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
 ## Scope
@@ -25,7 +25,7 @@ failure/                 Classed errors, the shared exit-code table 0–8 plus 1
   failure.go             Class constants, Register (9–125), New, Wrap, ClassOf, Code, ExitCode, From, Write
   failure_test.go        Table, class of plain and context errors, Wrap cause, Register limits, envelope shape
 logging/                 slog.Handler writing the standard's JSON line; files, cap, retention, text on stderr
-  handler.go             New with its options, the handler (Enabled, Handle, WithAttrs, WithGroup), the fallback lines
+  handler.go             New with its options (Writer, Level for tests), SettingsOf (what the logger does), the handler, fallback
   line.go                The ordered line: fixed keys, attribute flattening, errors to exception.*, JSON encoding
   value.go               plainValue: any Go value to JSON-shaped data by reflection; non-finite floats as strings
   truncate.go            64 KiB limit: longest string first, middle cut with the sentinel, 256-byte floor
@@ -73,6 +73,18 @@ lifecycle/               Run owns main: setup, process.start, the stop sequence,
   scenarios_test.go      The child scenarios: clean, signals, stop, failing and hanging steps, panics, late causes, forcing, cap, flush
   internal_test.go       Heartbeat interval, second Run panics, foreign ctx panics
   example_test.go        The section 9.1 server, compiled
+cli/                     The Cobra tree of a tool (section 9.2): --format, Output, envelope, work.Command per run
+  root.go                Package doc, Root (identity, --format, doctor, usage template with Formats), Group, IdentityOf
+  command.go             Runner, Formats, Command; runLeaf: format check, work.Command, recover, args.flags
+  output.go              Format constants, Output (JSON once, JSONL, Text; one write each), formatList
+  execute.go             Execute with injected streams; Stdin(ctx); a tree runs once; Cobra errors before a runner are usage
+  envelope.go            Cobra checks to usage failures (flagError, wrapValidation), hook errors classed, incomplete lists commands
+  cli_test.go            Sample tree through clitest: formats, envelope per class, usage and hook errors, panic, cancel, help, doctor
+  clitest/               Run a tree in tests
+    clitest.go           Run/RunContext (exit, stdout, stderr; debug logger to a buffer), Lines (decoded), Raw (for logcheck)
+doctor/                  The report behind every tool's doctor command
+  doctor.go              Item/Section/Report, Add hook, Build (program, logging, telemetry probe), Text, ordered MarshalJSON
+  doctor_test.go         Env to items, logger in ctx wins, fallback, today's file, tracing switch, probe, Add order, text and JSON
 internal/
   otelres/               Shared by tracing and metrics
     otelres.go           EndpointVar switch, identity resource over the SDK default, error handler to the logger

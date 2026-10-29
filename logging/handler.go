@@ -28,6 +28,7 @@ type options struct {
 	dir          string
 	now          func() time.Time
 	writer       io.Writer
+	level        *slog.Level
 }
 
 // KeepDays sets how many days of files the logger keeps (default 14); 0 keeps every file.
@@ -48,15 +49,21 @@ func Now(now func() time.Time) Option { return func(o *options) { o.now = now } 
 // Writer sends the JSON lines to w and nowhere else; for tests.
 func Writer(w io.Writer) Option { return func(o *options) { o.writer = w } }
 
+// Level forces the minimum level over the environment; for tests.
+func Level(l slog.Level) Option { return func(o *options) { o.level = &l } }
+
 // handler is the slog.Handler. Clones made by WithAttrs and WithGroup share the sink.
 type handler struct {
-	id     identity.Identity
-	level  slog.Level
-	now    func() time.Time
-	sink   sink
-	text   bool
-	prefix string
-	pre    []prefixed
+	id    identity.Identity
+	level slog.Level
+	// settings is what the logger does, for SettingsOf: the output after options and the
+	// fallback, the level, the folder.
+	settings Settings
+	now      func() time.Time
+	sink     sink
+	text     bool
+	prefix   string
+	pre      []prefixed
 }
 
 // prefixed is an attribute given to WithAttrs with the group prefix open at that time.
@@ -74,30 +81,36 @@ func New(id identity.Identity, opts ...Option) *slog.Logger {
 		opt(&o)
 	}
 	settings := Resolve(id)
-	if o.output == "" {
-		o.output = settings.Output
+	if o.output != "" {
+		settings.Output, settings.OutputSource = o.output, "logging.Output option"
 	}
-	if o.dir == "" {
-		o.dir = settings.Dir
+	if o.dir != "" {
+		settings.Dir = o.dir
+	}
+	if o.level != nil {
+		settings.Level, settings.LevelSource = *o.level, "logging.Level option"
 	}
 	h := &handler{id: id, level: settings.Level, now: o.now}
 	var fallback []slog.Attr
 	switch {
 	case o.writer != nil:
 		h.sink = writerSink{o.writer}
-	case o.output == OutputStderr:
+		settings.Output, settings.OutputSource = "writer", "logging.Writer option"
+	case settings.Output == OutputStderr:
 		h.sink, h.text = writerSink{os.Stderr}, true
-	case o.output == OutputStdout:
+	case settings.Output == OutputStdout:
 		h.sink = writerSink{os.Stdout}
 	default:
-		fs, err := openFileSink(o.dir, id.Name, o.maxFileBytes, o.keepDays, h.clock, h.eventLine)
+		fs, err := openFileSink(settings.Dir, id.Name, o.maxFileBytes, o.keepDays, h.clock, h.eventLine)
 		if err != nil {
 			h.sink, h.text = writerSink{os.Stderr}, true
 			fallback = []slog.Attr{slog.String("reason", "cannot open the log file; writing to stderr"), slog.Any("error", err)}
+			settings.Output, settings.OutputSource = OutputStderr, "fallback: cannot open the log file: "+err.Error()
 		} else {
 			h.sink = fs
 		}
 	}
+	h.settings = settings
 	log := slog.New(h)
 	if fallback != nil {
 		log.LogAttrs(context.Background(), slog.LevelWarn, "", append([]slog.Attr{Event("log.fallback")}, fallback...)...)
@@ -107,6 +120,16 @@ func New(id identity.Identity, opts ...Option) *slog.Logger {
 			Event("log.fallback"), slog.String("reason", "ignored a bad setting"), slog.Any("error", settings.Err))
 	}
 	return log
+}
+
+// SettingsOf returns what a logger made by New does: the output it writes to and why, the
+// level and its source, the folder. ok is false for a logger of another handler.
+func SettingsOf(log *slog.Logger) (s Settings, ok bool) {
+	h, ok := log.Handler().(*handler)
+	if !ok {
+		return Settings{}, false
+	}
+	return h.settings, true
 }
 
 func (h *handler) clock() time.Time {
