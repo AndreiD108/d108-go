@@ -3,7 +3,8 @@
 The Go library of the d108 observability contract (`../d108/standard.md`): one package per
 job, built in the order the standard's section 9 lists them. This batch holds the parts that
 name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
-and the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`).
+the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`) and
+the process owner (`lifecycle`).
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
 ## Scope
@@ -62,6 +63,16 @@ metrics/                 Metric SDK, same switch and resource
 httpserver/              http.Server with work.HTTP, /healthz, CORS, pprof
   httpserver.go          New with Addr/CORS/Pprof, hand dispatch so r.Pattern stays the app's; ListenAndServe(ctx); Shutdown
   httpserver_test.go     /healthz silent, panic line, no route for a plain handler, CORS, pprof, cancel waits for requests
+lifecycle/               Run owns main: setup, process.start, the stop sequence, process.stop/crash, flush, exit code
+  lifecycle.go           Package doc, options (Grace, Heartbeat, Logging), Run and start: logger, Check, SDKs, process.start
+  run.go                 The run state in ctx, reasons, cause; OnStop, Stop, Go; stop records the first cause, logs late ones
+  stop.go                runFunc, wait (grace timer, forced), sequence (cancel, goroutines, steps reversed, fn), the last line
+  signals.go             SIGINT/SIGTERM/SIGHUP to the cause, a later signal forces; the signal codes (129, 130, 143)
+  heartbeat.go           process.heartbeat every interval until the stop
+  lifecycle_test.go      Parent side: runs the test binary per scenario, reads the log file through logcheck, asserts
+  scenarios_test.go      The child scenarios: clean, signals, stop, failing and hanging steps, panics, late causes, forcing, cap, flush
+  internal_test.go       Heartbeat interval, second Run panics, foreign ctx panics
+  example_test.go        The section 9.1 server, compiled
 internal/
   otelres/               Shared by tracing and metrics
     otelres.go           EndpointVar switch, identity resource over the SDK default, error handler to the logger
