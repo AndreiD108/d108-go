@@ -19,6 +19,7 @@ Use this tree as a map — scan it to find the parts your task touches, then go 
 <!-- BEGIN FILE TREE -->
 ```
 Makefile                 `test`; `sync-contract` copies cases.json, the schema and secrets.json from ../d108
+README.md                What the module is, GOPRIVATE and git credentials for the private module, release tags
 identity/                service.name, service.version, service.instance.id (ULID), pid, env prefix
   identity.go            Identity struct, New (name check, version by ldflags > build info > vcs > dev), EnvPrefix
   identity_test.go       Fields, prefix rules, bad names panic, version resolution table
