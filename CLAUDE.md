@@ -142,8 +142,11 @@ internal/
 
 - `internal/golden/cases.json` and `log-line.schema.json` are copies; edit the sources in
   `../d108` and run `make sync-contract`. `TestCopiesMatchContract` fails while they differ.
-- Tests import `github.com/AndreiD108/d108/logcheck` through a `replace` to `../d108/logcheck`
-  in `go.mod`; both repos sit side by side under `~/Projects/Devbox/common/`.
+- Tests import `github.com/AndreiD108/d108/logcheck` by version (tag `logcheck/vX.Y.Z` in the
+  `d108` repo). Both repos are private: `go` needs `GOPRIVATE=github.com/AndreiD108/*` and git
+  credentials for `https://github.com` (`gh auth setup-git`, or an SSH `insteadOf` rule).
+- Releases are tags `vX.Y.Z` on `main`; `v0.1.0` is the first (2026-10-29). Consumers
+  (`sift-cli`, `plottingroom`) require the tag, no `replace`.
 - `logging.Event(name)` is the one way to set `event_name`; a plain `event_name` attribute is
   written as `attr.event_name` like any other fixed key.
 - An attribute whose value is an `error` becomes `exception.type` and `exception.message`

@@ -1,3 +1,5 @@
+github.com/AndreiD108/d108/logcheck v0.1.0 h1:m/s4qcDF2qJ64XeM4ut6eHXFaTdt6Y8uHouPUYUnq8Q=
+github.com/AndreiD108/d108/logcheck v0.1.0/go.mod h1:NoALm2FMOXoTj+RVSViGWo3e6M6YAi3eqN1aD+tXGO8=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=

@@ -3,7 +3,7 @@ module github.com/AndreiD108/d108-go
 go 1.27.3
 
 require (
-	github.com/AndreiD108/d108/logcheck v0.0.0-00010101000000-000000000000
+	github.com/AndreiD108/d108/logcheck v0.1.0
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/sethvargo/go-envconfig v1.4.3
 	github.com/spf13/cobra v1.10.2
@@ -39,5 +39,3 @@ require (
 	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
-
-replace github.com/AndreiD108/d108/logcheck => ../d108/logcheck
