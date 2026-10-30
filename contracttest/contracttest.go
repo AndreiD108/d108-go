@@ -2,7 +2,8 @@
 // logcheck binary of the private contract repo, found on PATH, and skips the test when the
 // binary is not there, so a clone without it still passes go test:
 //
-//	t.Run("contract", func(t *testing.T) { contracttest.Check(t, clitest.Raw(t)) })
+//	lines := clitest.Raw(t)
+//	t.Run("contract", func(t *testing.T) { contracttest.Check(t, lines) })
 //
 // Put the call in its own subtest when other assertions follow it: a skip ends the test it
 // is called in.

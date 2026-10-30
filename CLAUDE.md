@@ -118,11 +118,11 @@ secrets/                 One encrypted file of names and values (section 9.5): A
   machine_darwin.go      IOPlatformUUID from ioreg
   doctor.go              The "secrets" section: names only, "none", or one error item
   secrets_test.go        Round trip, modes, no clear text, delete, other machine or platform is auth, damaged files, concurrent saves, doctor, fixture
+  testdata/
+    secrets.json         Copy of ../d108/golden/secrets.json: one envelope with its inputs and plaintext
 contracttest/            Lines against the contract in tests: the logcheck binary on PATH, skip without it
   contracttest.go        Check(tb, lines): one logcheck run over a temp file; only a missing binary skips; Install
   contracttest_test.go   A shell-script logcheck: pass, missing, exit 1, exit 2, signal, no newline, one run over the joined lines
-  testdata/
-    secrets.json         Copy of ../d108/golden/secrets.json: one envelope with its inputs and plaintext
 internal/
   otelres/               Shared by tracing and metrics
     otelres.go           EndpointVar switch, identity resource over the SDK default, error handler to the logger
