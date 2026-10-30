@@ -8,9 +8,7 @@
 //	if res.ExitCode != 0 || res.Reason != lifecycle.ReasonDone {
 //		t.Fatalf("exit %d, reason %s", res.ExitCode, res.Reason)
 //	}
-//	for _, line := range res.Lines {
-//		if problems := logcheck.Check(line); problems != nil { ... }
-//	}
+//	t.Run("contract", func(t *testing.T) { contracttest.Check(t, res.Lines) })
 package lifecycletest
 
 import (
@@ -36,7 +34,7 @@ type Result struct {
 	// FailedSteps names the stop steps that returned an error or panicked, in run order.
 	FailedSteps []string
 	// Lines holds every line the run wrote, process.start to the last line, each with its
-	// newline, as logcheck.Check takes them.
+	// newline, as contracttest.Check takes them.
 	Lines [][]byte
 }
 

@@ -65,7 +65,7 @@ func RunContext(ctx context.Context, t testing.TB, root *cobra.Command, stdin st
 }
 
 // Raw returns every log line the test's runs wrote so far, as written, each with its
-// newline; for a check against the contract with logcheck.
+// newline; for contracttest.Check.
 func Raw(t testing.TB) [][]byte {
 	var lines [][]byte
 	for _, raw := range bytes.Split(buffer(t).bytes(), []byte("\n")) {

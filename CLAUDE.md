@@ -5,7 +5,7 @@ job, built in the order the standard's section 9 lists them. This batch holds th
 name the program and write the line (`identity`, `failure`, `logging`, `paths`, `atomicfile`)
 the units of work with the OTel SDK wiring (`work`, `tracing`, `metrics`, `httpserver`), the
 process owner (`lifecycle`, with `lifecycletest` for service tests), the CLI kit (`cli`, `cli/clitest`, `doctor`) and the two kinds of
-configuration (`config`, `secrets`).
+configuration (`config`, `secrets`). `contracttest` checks lines against the contract in tests.
 `internal/golden` runs the contract's corpus through `logging` and is the acceptance test.
 
 ## Scope
@@ -19,7 +19,8 @@ Use this tree as a map — scan it to find the parts your task touches, then go 
 <!-- BEGIN FILE TREE -->
 ```
 Makefile                 `test`; `sync-contract` copies cases.json, the schema and secrets.json from ../d108
-README.md                What the module is, GOPRIVATE and git credentials for the private module, release tags
+LICENSE                  MIT
+README.md                What the module is (public), release tags, installing logcheck from the private repo
 identity/                service.name, service.version, service.instance.id (ULID), pid, env prefix
   identity.go            Identity struct, New (name check, version by ldflags > build info > vcs > dev), EnvPrefix
   identity_test.go       Fields, prefix rules, bad names panic, version resolution table
@@ -73,7 +74,7 @@ lifecycle/               Run owns main: setup, default logger, process.start, th
   run.go                 The reasons; OnStop, Stop, Go over the run in ctx
   signals.go             SIGINT/SIGTERM/SIGHUP to the cause, a later signal forces; the signal codes (129, 130, 143)
   heartbeat.go           process.heartbeat every interval until the stop
-  lifecycle_test.go      Parent side: runs the test binary per scenario, reads the log file through logcheck, asserts
+  lifecycle_test.go      Parent side: runs the test binary per scenario, reads the log file, contract check, asserts
   scenarios_test.go      The child scenarios: clean, signals, stop, failing and hanging steps, panics, late causes, forcing, cap, flush, default logger
   internal_test.go       Heartbeat interval, second Run panics, foreign ctx panics
   example_test.go        The section 9.1 server, compiled
@@ -82,7 +83,7 @@ lifecycle/               Run owns main: setup, default logger, process.start, th
       run.go             Run in ctx, Options, Cause; New, FromContext, OnStop, Go, Stop (first cause, late ones logged), Force
       stop.go            RunFunc, Wait (grace timer, forced, flush), Outcome, sequence (cancel, goroutines, steps reversed, fn), the last line
   lifecycletest/         The stop sequence in-process for a service test
-    lifecycletest.go     Run(t, fn, opts) Result: the run over a buffer logger set as slog.Default, no signals or SDKs; Lines for logcheck
+    lifecycletest.go     Run(t, fn, opts) Result: the run over a buffer logger set as slog.Default, no signals or SDKs; Lines for contracttest
     lifecycletest_test.go  Stop order after the Go drain, default logger in and restored, failing steps, panics, two runs, grace forces
 cli/                     The Cobra tree of a tool (section 9.2): --format, Output, envelope, work.Command per run
   root.go                Package doc, Root (identity, --format, doctor, help command, usage template with Formats), Group, IdentityOf
@@ -98,7 +99,7 @@ cli/                     The Cobra tree of a tool (section 9.2): --format, Outpu
   envelope_test.go       details.command on every envelope and the app's own wins, help of an unknown command, __complete
   secret_linux_test.go   ReadSecret on a pty from /dev/ptmx: echo off at the read and on after, blocking mode restored, cancel
   clitest/               Run a tree in tests
-    clitest.go           Run/RunContext (exit, stdout, stderr; debug logger to a buffer), Lines (decoded), Raw (for logcheck)
+    clitest.go           Run/RunContext (exit, stdout, stderr; debug logger to a buffer), Lines (decoded), Raw (for contracttest)
 doctor/                  The report behind every tool's doctor command
   doctor.go              Item/Section/Report, Add hook, Build (program, logging, telemetry probe), Text, ordered MarshalJSON
   doctor_test.go         Env to items, logger in ctx wins, fallback, today's file, tracing switch, probe, Add order, text and JSON
@@ -117,6 +118,9 @@ secrets/                 One encrypted file of names and values (section 9.5): A
   machine_darwin.go      IOPlatformUUID from ioreg
   doctor.go              The "secrets" section: names only, "none", or one error item
   secrets_test.go        Round trip, modes, no clear text, delete, other machine or platform is auth, damaged files, concurrent saves, doctor, fixture
+contracttest/            Lines against the contract in tests: the logcheck binary on PATH, skip without it
+  contracttest.go        Check(tb, lines): one logcheck run over a temp file; only a missing binary skips; Install
+  contracttest_test.go   A shell-script logcheck: pass, missing, exit 1, exit 2, signal, no newline, one run over the joined lines
   testdata/
     secrets.json         Copy of ../d108/golden/secrets.json: one envelope with its inputs and plaintext
 internal/
@@ -126,7 +130,7 @@ internal/
   golden/                Acceptance test against the contract's corpus
     cases.json           Copy of ../d108/golden/cases.json
     log-line.schema.json Copy of ../d108/schema/log-line.schema.json
-    golden_test.go       Every case through logging and logcheck.Check; run cases emitted as work will; copy drift
+    golden_test.go       Every case through logging and contracttest; run cases emitted as work will; copy drift
 ```
 <!-- END FILE TREE -->
 
@@ -143,11 +147,15 @@ internal/
 
 - `internal/golden/cases.json` and `log-line.schema.json` are copies; edit the sources in
   `../d108` and run `make sync-contract`. `TestCopiesMatchContract` fails while they differ.
-- Tests import `github.com/AndreiD108/d108/logcheck` by version (tag `logcheck/vX.Y.Z` in the
-  `d108` repo). Both repos are private: `go` needs `GOPRIVATE=github.com/AndreiD108/*` and git
-  credentials for `https://github.com` (`gh auth setup-git`, or an SSH `insteadOf` rule).
-- Releases are tags `vX.Y.Z` on `main`; `v0.1.0` is the first (2026-10-29). Consumers
-  (`sift-cli`, `plottingroom`) require the tag, no `replace`.
+- This module is public (MIT); the contract repo `d108` is private. No Go import links them:
+  tests check lines with `contracttest.Check`, which runs the `logcheck` binary from PATH and
+  skips without it. Installing `logcheck` needs `GOPRIVATE=github.com/AndreiD108/*` and git
+  credentials for `https://github.com` (README).
+- Put `contracttest.Check` in its own `t.Run("contract", ...)` when assertions follow it, so
+  its skip does not skip them. One call per batch of lines, not per line.
+- Releases are tags `vX.Y.Z` on `main`; `v0.1.0` is the first (2026-10-29), `v0.1.1` the first
+  without the private dependency. Consumers (`sift-cli`, `plottingroom`) require the tag, no
+  `replace`.
 - `logging.Event(name)` is the one way to set `event_name`; a plain `event_name` attribute is
   written as `attr.event_name` like any other fixed key.
 - An attribute whose value is an `error` becomes `exception.type` and `exception.message`

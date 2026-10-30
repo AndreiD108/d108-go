@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreiD108/d108/logcheck"
+	"github.com/AndreiD108/d108-go/contracttest"
 )
 
 func TestMain(m *testing.M) {
@@ -41,7 +41,7 @@ type result struct {
 }
 
 // run runs the test binary as the scenario's child and reads its log file back. Every line
-// must pass logcheck.
+// must pass the contract check.
 func run(t *testing.T, scenario string, env ...string) result {
 	t.Helper()
 	dir := t.TempDir()
@@ -84,6 +84,7 @@ func readLines(t *testing.T, dir string) []line {
 		t.Fatal(err)
 	}
 	var lines []line
+	var raws [][]byte
 	for _, f := range files {
 		data, err := os.ReadFile(f)
 		if err != nil {
@@ -93,9 +94,7 @@ func readLines(t *testing.T, dir string) []line {
 			if len(raw) == 0 {
 				continue
 			}
-			if problems := logcheck.Check(append(raw, '\n')); problems != nil {
-				t.Errorf("logcheck: %+v\n%s", problems, raw)
-			}
+			raws = append(raws, append(raw, '\n'))
 			var l line
 			if err := json.Unmarshal(raw, &l); err != nil {
 				t.Fatalf("bad line %q: %v", raw, err)
@@ -103,6 +102,7 @@ func readLines(t *testing.T, dir string) []line {
 			lines = append(lines, l)
 		}
 	}
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, raws) })
 	return lines
 }
 

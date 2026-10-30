@@ -6,6 +6,12 @@
 // written through atomicfile, so a reader sees the old file or the new one. The two files
 // copied to another machine do not open there: the user enters the secrets again.
 //
+// What it protects against: secrets.enc alone is useless, and with the key file it opens only
+// where the machine id matches, so a copy of the Config directory does not open elsewhere.
+// What it does not: any process running as the user on that machine can decrypt, and so can
+// anyone holding the key file and the machine id (a full-disk backup holds both). The code
+// being public changes neither: the strength is the random key file, not a secret in the code.
+//
 // Open registers the doctor section "secrets" with the names only, never the values.
 package secrets
 

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreiD108/d108/logcheck"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/AndreiD108/d108-go/contracttest"
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
 	"github.com/AndreiD108/d108-go/logging"
@@ -118,9 +118,7 @@ func TestCorpus(t *testing.T) {
 			if len(line) == 0 {
 				t.Fatal("nothing was written")
 			}
-			if problems := logcheck.Check(line); problems != nil {
-				t.Errorf("logcheck: %+v", problems)
-			}
+			t.Run("contract", func(t *testing.T) { contracttest.Check(t, [][]byte{line}) })
 			if !bytes.HasPrefix(line, []byte(`{"timestamp":`)) {
 				t.Errorf("timestamp is not the first key: %.60s", line)
 			}

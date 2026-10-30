@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AndreiD108/d108/logcheck"
-
+	"github.com/AndreiD108/d108-go/contracttest"
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/lifecycle"
 	"github.com/AndreiD108/d108-go/lifecycle/lifecycletest"
@@ -23,14 +22,12 @@ func (l line) str(key string) string {
 	return s
 }
 
-// decode checks every line with logcheck and decodes it.
+// decode checks every line against the contract and decodes it.
 func decode(t *testing.T, res lifecycletest.Result) []line {
 	t.Helper()
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, res.Lines) })
 	var out []line
 	for _, raw := range res.Lines {
-		if problems := logcheck.Check(raw); problems != nil {
-			t.Errorf("logcheck: %+v\n%s", problems, raw)
-		}
 		var l line
 		if err := json.Unmarshal(raw, &l); err != nil {
 			t.Fatalf("bad line %q: %v", raw, err)

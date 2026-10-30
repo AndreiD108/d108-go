@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AndreiD108/d108-go/contracttest"
 	"github.com/AndreiD108/d108-go/identity"
-	"github.com/AndreiD108/d108/logcheck"
 )
 
 const childEnv = "D108_LOGGING_CHILD_DIR"
@@ -241,29 +241,23 @@ func payloadSize(r *rand.Rand) int {
 	return r.Intn(1000)
 }
 
-// checkFile reads every line of path through logcheck and counts them.
+// checkFile counts the lines of path and checks them against the contract.
 func checkFile(t *testing.T, path string, want int) {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	broken, count := 0, 0
+	var lines [][]byte
 	for _, l := range bytes.SplitAfter(raw, []byte("\n")) {
-		if len(l) == 0 {
-			continue
-		}
-		count++
-		if problems := logcheck.Check(l); problems != nil {
-			broken++
-			if broken <= 3 {
-				t.Errorf("broken line: %+v: %.80s", problems, l)
-			}
+		if len(l) > 0 {
+			lines = append(lines, l)
 		}
 	}
-	if broken != 0 || count != want {
-		t.Errorf("%d lines, %d broken; want %d and 0", count, broken, want)
+	if len(lines) != want {
+		t.Errorf("%d lines, want %d", len(lines), want)
 	}
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, lines) })
 }
 
 func TestCapHoldsAcrossReopen(t *testing.T) {

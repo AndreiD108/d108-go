@@ -13,9 +13,9 @@ import (
 
 	"github.com/AndreiD108/d108-go/cli"
 	"github.com/AndreiD108/d108-go/cli/clitest"
+	"github.com/AndreiD108/d108-go/contracttest"
 	"github.com/AndreiD108/d108-go/failure"
 	"github.com/AndreiD108/d108-go/identity"
-	"github.com/AndreiD108/d108/logcheck"
 )
 
 type hit struct {
@@ -470,11 +470,7 @@ func TestLinesPassLogcheck(t *testing.T) {
 	if len(lines) != 4 {
 		t.Fatalf("%d lines: %s", len(lines), lines)
 	}
-	for _, raw := range lines {
-		if problems := logcheck.Check(raw); problems != nil {
-			t.Errorf("%v: %s", problems, raw)
-		}
-	}
+	contracttest.Check(t, lines)
 }
 
 func TestStdinReachesTheRunner(t *testing.T) {

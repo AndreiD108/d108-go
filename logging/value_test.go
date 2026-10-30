@@ -6,7 +6,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/AndreiD108/d108/logcheck"
+	"github.com/AndreiD108/d108-go/contracttest"
 )
 
 func TestNestedNonFiniteKeepsSiblings(t *testing.T) {
@@ -41,9 +41,7 @@ func TestInlineGroupUnderWithGroup(t *testing.T) {
 	log, buf := capture(t)
 	log.WithGroup("db").With(slog.Group("", slog.Int("n", 1))).WithGroup("q").Info("x", slog.Group("", slog.String("s", "v")), "k", 2)
 	raw := append([]byte(nil), buf.Bytes()...)
-	if problems := logcheck.Check(raw); problems != nil {
-		t.Errorf("logcheck: %+v", problems)
-	}
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, [][]byte{raw}) })
 	got := one(t, buf)
 	if got["db.n"] != json.Number("1") || got["db.q.s"] != "v" || got["db.q.k"] != json.Number("2") {
 		t.Errorf("got %v", got)
@@ -56,9 +54,7 @@ func TestMalformedNumberBecomesString(t *testing.T) {
 		"plus", json.Number("+1"), "lead", json.Number("01"), "hex", json.Number("0x1"),
 		"good", json.Number("42"), "neg", json.Number("-1.5e-3"), "sib", "kept")
 	raw := append([]byte(nil), buf.Bytes()...)
-	if problems := logcheck.Check(raw); problems != nil {
-		t.Errorf("logcheck: %+v", problems)
-	}
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, [][]byte{raw}) })
 	got := one(t, buf)
 	want := map[string]any{
 		"bad": "1.2.3", "nan": "NaN", "inf": "+Inf", "plus": "+1", "lead": "01", "hex": "0x1",
@@ -105,9 +101,7 @@ func TestCyclicEmbeddedStructEnds(t *testing.T) {
 	n.node = n
 	log.Info("cycle", "n", n, "after", "kept")
 	raw := append([]byte(nil), buf.Bytes()...)
-	if problems := logcheck.Check(raw); problems != nil {
-		t.Errorf("logcheck: %+v", problems)
-	}
+	t.Run("contract", func(t *testing.T) { contracttest.Check(t, [][]byte{raw}) })
 	got := one(t, buf)
 	if got["after"] != "kept" || got["n.v"] != json.Number("1") {
 		t.Errorf("got %v", got)
